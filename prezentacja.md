@@ -28,6 +28,7 @@
 
 ### jak je obejść?
   - koordynator zarządzający przydzielaniem i zbieraniem wyników tasków przez RPC
+  
         First, mu uses a long-lived coordinator that provides
         command and control for a fleet of ephemeral workers
         that contain no thread-specific logic. Instead, the coordinator
@@ -39,6 +40,7 @@
         then assigns tasks that consume those outputs. This helps
         to avoid deadlock and reduce end-to-end completion time.
   - jedna, generyczna lambda
+  
         Second, all workers in mu use the same generic
         Lambda function. This Lambda function is capable of
         executing the work of any thread in the computation.
@@ -47,18 +49,21 @@
         one Lambda function and thus that workers spawn
         quickly because the function remains warm.
   - serwer pośredniczący
+  
         Third, we use a rendezvous server that helps each worker communicate
         with other workers. The end result is a highly parallel,
         distributed, low-latency computational substrate.
 
 ### (nie dające się obejść)
   - ograniczona liczba tasków per AWS region
+  
         This design does not completely sidestep the above limitations.
         Amazon was willing to increase our concurrent
         worker limit only to 1,200 per AWS region (the default is
         100). We still need to partition our largest computations
         among several regions.
   - max 5 minut / task
+  
         In addition, the five-minute worker
         timeout seems unavoidable. For ExCamera this limitation
         does not cause serious problems since the system aims
@@ -68,6 +73,7 @@
 ## mu framework
 ### elementy
   - workers
+  
         mu workers are short-lived Lambda function
         invocations. When a worker is invoked, it immediately
         establishes a connection to the coordinator, which thereafter
@@ -77,6 +83,7 @@
         to other workers via a rendezvous server; send data to
         workers over such connections; or run an executable.
   - coordinator
+  
         The coordinator is a long-lived server (e.g.,
         an EC2 VM) that launches jobs and controls their execution.
         To launch jobs, the coordinator generates events,
@@ -86,6 +93,7 @@
         uses many parallel TCP connections to the HTTP server
         (one per worker) and submits all events in parallel.
   - rendezvous
+  
         Like the coordinator, the rendezvous server
         is long lived. mu’s rendezvous is a simple relay server
         that stores messages from workers and forwards them to
@@ -101,6 +109,7 @@
 
 ## kodowanie video
 - czym jest key frame?
+
       To allow this, video encoders insert Stream Access
       Points in the compressed bitstream—one at the beginning,
       and additional ones in the middle. A Stream Access Point
@@ -118,6 +127,7 @@
   - prediction modes
   - motion vectors
   - residue
+  
         The goal of an interframe is to be as short as possible,
         by exploiting correlations between the intended output
         image and the contents of the three reference slots in the
@@ -140,6 +150,7 @@
         the probability model, and which reference slots in the
         state object should be replaced with the new output image
 - jakie znaczenie ma odstęp pomiędzy key frame'ami?
+
       But key frames incur a significant cost. As an example,
       a raw frame of 4K video is about 11 megabytes. After
       compression in the VP8 format at 15 Mbps, a key frame
@@ -163,6 +174,7 @@
     without requiring a key frame in between.
 
   - enkodowanie kilku-ramkowych chunków
+  
         1. (Parallel) Each thread downloads an N-image chunk
         of raw video. At the resolution of a 4K widescreen
         movie, each image is 11 megabytes.
@@ -171,6 +183,7 @@
         key frame (typically about one megabyte) followed
         by N − 1 interframes (about 10–30 kilobytes apiece).
   - usuwanie key frame'ów
+  
         3. (Parallel) Each thread runs ExCamera’s decode operator
         N times to calculate the final state, then sends
         that state to the next thread in the batch.
@@ -182,6 +195,7 @@
         from vpxenc is thrown away; encode-given-state
         works de novo from the original raw image.
   - rebase
+  
         5. (Serial) The first remaining thread runs rebase to
         rewrite interframes 2..N in terms of the state left behind
         by its new first frame. It sends its final state to
@@ -192,12 +206,14 @@
 
 ### dodatkowe operacje
   - encode-given-state
+  
         This routine takes a state (including the three reference
         images), and a raw input image, and searches for the best
         combination of motion vectors and prediction modes so
         that the resulting interframe approximates the original
         image to a given fidelity.
   - rebase
+  
         While encode-given-state creates a compressed frame
         de novo, a rebase is a transformation on compressed
         frames, taking advantage of calculations already done.
